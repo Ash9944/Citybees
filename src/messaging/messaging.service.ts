@@ -34,7 +34,11 @@ export class MessagingService {
   ) { }
 
   fetchServiceRequestorConversation(conversationId: string) {
-    
+    try {
+
+    } catch (error) {
+
+    }
   }
 
   async createMessage(messagingDetails: CreateMessagingDto) {
