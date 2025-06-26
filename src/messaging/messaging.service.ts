@@ -34,11 +34,7 @@ export class MessagingService {
   ) { }
 
   fetchServiceRequestorConversation(conversationId: string) {
-    try {
-
-    } catch (error) {
-
-    }
+    
   }
 
   async createMessage(messagingDetails: CreateMessagingDto) {
@@ -53,11 +49,11 @@ export class MessagingService {
       }
 
       const conversationId = [details.senderDetails.id, details.recieverDetails.id].sort().join('');
-      let conversationObject = await this.conversationRepo.findOne({ where: { conversationId : conversationId } });
+      let conversationObject = await this.conversationRepo.findOne({ where: { conversationId: conversationId } });
 
       if (!conversationObject) {
         const newConversationObject = this.conversationRepo.create({
-          conversationId : conversationId,
+          conversationId: conversationId,
         });
 
         newConversationObject.participants = this.setCreateConversationMembersObject(details, newConversationObject);
