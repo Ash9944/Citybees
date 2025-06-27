@@ -1,27 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { CreateMessagingDto } from './dto/create-messaging.dto';
 import { UpdateMessagingDto } from './dto/update-messaging.dto';
 import { userTypes } from '../enums/user.enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entities/user.entity';
 import { Repository } from 'typeorm';
-import { ServiceProvider } from 'src/entities/serviceProvider.entity';
-import { Technicians } from 'src/entities/technicians.entity';
 import { Conversations } from 'src/entities/conversation.entity';
 import { ConversationMembers } from 'src/entities/conversationMembers.entity';
 import { Messages } from 'src/entities/messaging.entity';
+import { FetchMessagesQueryDto } from './dto/fetchMessages.dto';
+import { MessagingGateway } from './messaging.gateway';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { Socket } from 'socket.io';
 
 @Injectable()
 export class MessagingService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-
-    @InjectRepository(ServiceProvider)
-    private serviceProviderRepo: Repository<ServiceProvider>,
-
-    @InjectRepository(Technicians)
-    private technicianRepo: Repository<Technicians>,
 
     @InjectRepository(Conversations)
     private conversationRepo: Repository<Conversations>,
@@ -31,148 +28,122 @@ export class MessagingService {
 
     @InjectRepository(Messages)
     private messagesRepo: Repository<Messages>,
+
+    @Inject(CACHE_MANAGER) private cacheManager: Cache
   ) { }
 
-  fetchServiceRequestorConversation(conversationId: string) {
+  async fetchConversation(queryDetails: FetchMessagesQueryDto) {
     try {
+      const messages = await this.messagesRepo
+        .createQueryBuilder('message')
+        .leftJoinAndSelect('message.conversation', 'conversation')
+        .where('message.conversationId = :convId', { convId: [queryDetails.senderId, queryDetails.recieverId].sort().join('') })
+        .andWhere(
+          'message.createdAt < :cursorTime OR (message.createdAt = :cursorTime AND message.id < :cursorId)',
+          {
+            cursorTime: queryDetails.cursorTime,
+            cursorId: queryDetails.lastMessageId,
+          }
+        )
+        .orderBy('message.createdAt', 'DESC')
+        .addOrderBy('message.id', 'DESC')
+        .take(20)
+        .getMany();
 
+      return messages;
     } catch (error) {
-
+      throw new InternalServerErrorException(error.message);
     }
   }
 
   async createMessage(messagingDetails: CreateMessagingDto) {
     try {
-      var details = await this.fetchUserDetails(messagingDetails);
-      if (!details?.senderDetails) {
+      const senderDetails = await this.usersRepository.findOne({ where: { id: messagingDetails.senderId } });
+
+      let recieverDetails: User | null;
+      if (!messagingDetails.recieverId && messagingDetails.isAdminMessage) {
+        recieverDetails = await this.usersRepository.findOne({ where: { email: "citybees@admin.com" } }); //static may change to dynamic
+      } else {
+        recieverDetails = await this.usersRepository.findOne({ where: { id: messagingDetails.recieverId } });
+      }
+
+
+      if (!senderDetails) {
         throw new Error("Coudn't find sender details");
       }
 
-      if (!details?.recieverDetails) {
+      if (!recieverDetails) {
         throw new Error("Coudn't find reciever details");
       }
 
-      const conversationId = [details.senderDetails.id, details.recieverDetails.id].sort().join('');
-      let conversationObject = await this.conversationRepo.findOne({ where: { conversationId : conversationId } });
+      const conversationId = [senderDetails.id, recieverDetails.id].sort().join('');
+      let conversationObject = await this.conversationRepo.findOne({ where: { conversationId: conversationId } });
 
       if (!conversationObject) {
         const newConversationObject = this.conversationRepo.create({
-          conversationId : conversationId,
+          conversationId: conversationId,
+          ticketSubject: messagingDetails.messageContent
         });
 
-        newConversationObject.participants = this.setCreateConversationMembersObject(details, newConversationObject);
         conversationObject = await this.conversationRepo.save(newConversationObject);
+
+        await this.conversationMembersRepo.save([
+          {
+            conversation: conversationObject,
+            user: senderDetails
+          },
+          {
+            conversation: conversationObject,
+            user: recieverDetails
+          }
+        ]);
       }
 
       const message = this.messagesRepo.create({
         content: messagingDetails.messageContent,
-        senderId: messagingDetails.senderId,
+        sender: senderDetails,
         conversation: conversationObject,
       });
 
-      await this.messagesRepo.save(message);
-    } catch (error) {
+      var savedMessage = await this.messagesRepo.save(message);
+      conversationObject.lastMessage = savedMessage;
 
+      this.conversationRepo.save(conversationObject);
+      var reciptientId = await this.cacheManager.get(recieverDetails.id);
+
+      return { savedMessage, reciptientId };
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
     }
   }
 
-  async fetchUserDetails(messagingDetails: CreateMessagingDto) {
+  async handleClientConnection(client: Socket) {
     try {
-      var senderDetails: User | ServiceProvider | Technicians | null = null;
-      var recieverDetails: User | ServiceProvider | Technicians | null = null;
-
-      switch (messagingDetails.senderRole) {
-        case userTypes.SERVICE_REQUESTER:
-          senderDetails = await this.usersRepository.findOne({
-            where: { id: messagingDetails.senderId }
-          });
-          break;
-
-        case userTypes.SERVICE_PROVIDER:
-          senderDetails = await this.serviceProviderRepo.findOne({
-            where: { id: messagingDetails.senderId }
-          });
-          break;
-
-        case userTypes.TECHNICIAN:
-          senderDetails = await this.technicianRepo.findOne({
-            where: { id: messagingDetails.senderId }
-          });
-          break;
+      if (!client.handshake.auth.userId) {
+        throw new Error("Coudn't find userID");
       }
 
-      switch (messagingDetails.recieverRole) {
-        case userTypes.SERVICE_REQUESTER:
-          recieverDetails = await this.usersRepository.findOne({
-            where: { id: messagingDetails.senderId }
-          });
-          break;
+      const userId = client.handshake.auth.userId as string;
+      await this.cacheManager.set(userId, client.id);
 
-        case userTypes.SERVICE_PROVIDER:
-          recieverDetails = await this.serviceProviderRepo.findOne({
-            where: { id: messagingDetails.senderId }
-          });
-          break;
-
-        case userTypes.TECHNICIAN:
-          recieverDetails = await this.technicianRepo.findOne({
-            where: { id: messagingDetails.senderId }
-          });
-          break;
-      }
-
-      return { senderDetails, recieverDetails };
-
+      return true;
     } catch (error) {
-
+      throw new InternalServerErrorException(error.message);
     }
   }
 
-  setCreateConversationMembersObject(details, createConversation): ConversationMembers[] {
+  async handleClientDisconnection(client: Socket) {
     try {
-      var conversationMemberObject: ConversationMembers[] = [];
-      for (let object in details) {
-        var createConversationMemberObject = this.conversationMembersRepo.create({
-          conversation: createConversation,
-        })
-
-        if (details[object] instanceof User) {
-          createConversationMemberObject.user = details[object];
-        }
-        else if (details[object] instanceof ServiceProvider) {
-          createConversationMemberObject.serviceProvider = details[object];
-        }
-        else if (details[object] instanceof Technicians) {
-          createConversationMemberObject.technician = details[object];
-        }
-
-        conversationMemberObject.push(createConversationMemberObject)
+      const userId = client.handshake.auth.userId as string;
+      if (!userId) {
+        throw new Error("Coudn't find User Id");
       }
 
-      return conversationMemberObject;
-
+      await this.cacheManager.del(userId);
+      return true;
     } catch (error) {
-      return [];
+      throw new InternalServerErrorException(error.message);
     }
   }
 
-  create(createMessagingDto: CreateMessagingDto) {
-    return 'This action adds a new messaging';
-  }
-
-  findAll() {
-    return `This action returns all messaging`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} messaging`;
-  }
-
-  update(id: number, updateMessagingDto: UpdateMessagingDto) {
-    return `This action updates a #${id} messaging`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} messaging`;
-  }
 }

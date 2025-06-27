@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString } from "class-validator";
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import { userTypes } from "src/enums/user.enums";
 
 export class CreateMessagingDto {
@@ -6,19 +6,14 @@ export class CreateMessagingDto {
     @IsNotEmpty()
     senderId: string;
 
-    @IsEnum(userTypes)
-    @IsNotEmpty()
-    senderRole: userTypes;
-
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
     recieverId: string;
-
-    @IsEnum(userTypes)
-    @IsNotEmpty()
-    recieverRole: userTypes;
 
     @IsString()
     @IsNotEmpty()
     messageContent: string
+
+    @IsBoolean()
+    isAdminMessage: boolean;
 }

@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { CommonService } from './common.service';
+import { userTypes } from 'src/enums/user.enums';
 
 @Controller()
 export class CommonController {
@@ -12,17 +13,17 @@ export class CommonController {
 
   @Post('otp/verify/requester')
   verifyRequesterOtp(@Body() otpCredentials: { phoneNumber: string; otp: string }) {
-    return this.commonService.verifyUserOtp(otpCredentials, "REQUESTER");
+    return this.commonService.verifyUserOtp(otpCredentials, userTypes.SERVICE_REQUESTER);
   }
 
   @Post('otp/verify/provider')
   verifyProviderOtp(@Body() otpCredentials: { phoneNumber: string; otp: string }) {
-    return this.commonService.verifyUserOtp(otpCredentials, "PROVIDER");
+    return this.commonService.verifyUserOtp(otpCredentials, userTypes.SERVICE_PROVIDER);
   }
 
   @Post('otp/verify/technician')
   verifyTechnicianOtp(@Body() otpCredentials: { phoneNumber: string; otp: string }) {
-    return this.commonService.verifyUserOtp(otpCredentials, "TECHNICIAN");
+    return this.commonService.verifyUserOtp(otpCredentials, userTypes.TECHNICIAN);
   }
 
 }

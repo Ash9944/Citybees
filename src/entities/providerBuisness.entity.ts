@@ -1,9 +1,8 @@
 import { Entity, Column, PrimaryGeneratedColumn,ManyToOne,JoinColumn, OneToMany, OneToOne, ManyToMany } from 'typeorm';
 import { Vat } from './vat.entity';
-import { ServiceProvider } from './serviceProvider.entity';
-import { Technicians } from './technicians.entity';
 import { ServicesMaster } from './servicesMaster.entity';
 import { ServicePrices } from './servicePrices.entity';
+import { User } from './user.entity';
 
 @Entity()
 export class ProviderBusiness {
@@ -48,20 +47,20 @@ export class ProviderBusiness {
   @Column({ type: 'int' })
   serviceRadiusInKm: number;
 
-  @ManyToOne(() => ServiceProvider, (vat) => vat.providerBusinesses, {
+  @ManyToOne(() => User, (vat) => vat.providerBusinesses, {
     nullable: true,
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'serviceProviderId' })
-  serviceProvider: ServiceProvider;
+  serviceProvider: User;
 
   @Column({ type: 'text' })
   serviceProviderId: string;
 
-  @OneToMany(() => Technicians, (technician) => technician.buisness, {
+  @OneToMany(() => User, (user) => user.providerBusinesses, {
     onDelete: 'SET NULL',
   })
-  technicians: Technicians[];
+  technicians: User[];
 
   @Column('double precision')
   latitude : number;

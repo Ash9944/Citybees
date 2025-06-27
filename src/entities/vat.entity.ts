@@ -1,7 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 import { User } from './user.entity';
-import { ServiceProvider } from './serviceProvider.entity';
-import { join } from 'path';
 import { ProviderBusiness } from './providerBuisness.entity';
 
 @Entity()

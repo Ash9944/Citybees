@@ -1,34 +1,38 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody } from '@nestjs/websockets';
+// chat.gateway.ts
+import { WebSocketGateway, WebSocketServer, SubscribeMessage, MessageBody, ConnectedSocket } from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
 import { MessagingService } from './messaging.service';
 import { CreateMessagingDto } from './dto/create-messaging.dto';
-import { UpdateMessagingDto } from './dto/update-messaging.dto';
+import { resolve } from 'path';
 
-@WebSocketGateway()
+@WebSocketGateway({ cors: true })
 export class MessagingGateway {
-  constructor(private readonly messagingService: MessagingService) {}
+  @WebSocketServer()
+  server: Server;
+  constructor(private readonly messagingService: MessagingService) { }
 
-  @SubscribeMessage('createMessaging')
-  create(@MessageBody() createMessagingDto: CreateMessagingDto) {
-    return this.messagingService.create(createMessagingDto);
+  // @SubscribeMessage('joinConversation')
+  // handleJoinConversation(@MessageBody() conversationId: string, @ConnectedSocket() client: Socket) {
+  //   client.join(conversationId);
+  // }
+
+  @SubscribeMessage('sendMessage')
+  async handleSendMessage(@MessageBody() data: CreateMessagingDto) {
+    const response = await this.messagingService.createMessage(data);
+    
+    const reciptientId = response.reciptientId as string;
+    if (reciptientId) {
+      this.server.to(reciptientId).emit('newMessage', response.savedMessage);
+    }
+
+    return true;
   }
 
-  @SubscribeMessage('findAllMessaging')
-  findAll() {
-    return this.messagingService.findAll();
+  handleConnection(client: Socket) {
+    return this.messagingService.handleClientConnection(client);
   }
 
-  @SubscribeMessage('findOneMessaging')
-  findOne(@MessageBody() id: number) {
-    return this.messagingService.findOne(id);
-  }
-
-  @SubscribeMessage('updateMessaging')
-  update(@MessageBody() updateMessagingDto: UpdateMessagingDto) {
-    return this.messagingService.update(updateMessagingDto.id, updateMessagingDto);
-  }
-
-  @SubscribeMessage('removeMessaging')
-  remove(@MessageBody() id: number) {
-    return this.messagingService.remove(id);
+  handleDisconnect(client: Socket) {
+    return this.messagingService.handleClientDisconnection(client)
   }
 }

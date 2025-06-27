@@ -1,6 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
-import { User } from './user.entity';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, UpdateDateColumn, CreateDateColumn } from 'typeorm';
 import { Conversations } from './conversation.entity';
+import { User } from './user.entity';
 
 @Entity()
 export class Messages {
@@ -14,9 +14,16 @@ export class Messages {
     @Column("text")
     content: string;
 
-    @Column()
-    senderId : string;
+    @ManyToOne(() => User, { eager: true })
+    @JoinColumn({ name: 'senderId' })
+    sender: User;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @CreateDateColumn()
     createdAt: Date;
+
+    @Column({ default: false })
+    isRead: boolean
+
+    @UpdateDateColumn()
+    updatedAt: Date;
 }

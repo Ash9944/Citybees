@@ -49,28 +49,28 @@ export class UsersService {
         throw new Error("Please register user");
       }
 
-      switch (true) {
+      switch (userDetails.step) {
 
-        case userDetails.step == 0:
+        case 0:
           user.step = userDetails.step;
           await this.usersRepository.update({ "id": userDetails.id }, userDetails as CreateUserDto);
           break;
 
-        case userDetails.step == 1:
+        case 1:
           user.addresses = [this.addressRepository.create(userDetails as createAddressDto)];
           user.step = userDetails.step;
 
           await this.usersRepository.save(user);
           break;
 
-        case userDetails.step == 2:
+        case 2:
           user.documents = this.personalDocumentsRepository.create(userDetails as CreatePersonalDocumentsDto);
           user.step = userDetails.step;
 
           await this.usersRepository.save(user);
           break;
 
-        case userDetails.step == 3:
+        case 3:
           let tenancyContract: CreateTenancyContractDto = {
             contractNumber: userDetails.contractNumber,
             contractExpiryDate: userDetails.contractExpiryDate,
@@ -92,20 +92,21 @@ export class UsersService {
           await this.usersRepository.save(user);
           break;
 
-        case userDetails.step == 4:
-          var quickAccessServices : ServicesMaster[] = await this.servicesMasterRepository.find({
-            where : { id : In(userDetails.quickAccessServices)}
+        case 4:
+          var quickAccessServices: ServicesMaster[] = await this.servicesMasterRepository.find({
+            where: { id: In(userDetails.quickAccessServices) }
           });
 
           user.quickAccessServices = quickAccessServices;
           user.step = userDetails.step;
           await this.usersRepository.save(user);
+          break;
 
       }
 
       return true;
     } catch (error) {
-      throw new Error("Message");
+      throw new Error(error.message);
     }
   }
 
@@ -125,7 +126,7 @@ export class UsersService {
       return true;
 
     } catch (error) {
-      throw new Error("Failed")
+      throw new Error(error.message);
     }
   }
 

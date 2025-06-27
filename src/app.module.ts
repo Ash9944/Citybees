@@ -7,6 +7,7 @@ import { AdminModule } from './admin/admin.module';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { MessagingModule } from './messaging/messaging.module';
+import { RedisCacheModule } from './redis-cache/redis-cache.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { MessagingModule } from './messaging/messaging.module';
     CommonModule,
     AuthModule,
     MessagingModule,
+    RedisCacheModule,
   ],
 })
 
