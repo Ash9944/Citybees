@@ -3,9 +3,10 @@ import { WebSocketGateway, WebSocketServer, SubscribeMessage, MessageBody, Conne
 import { Server, Socket } from 'socket.io';
 import { MessagingService } from './messaging.service';
 import { CreateMessagingDto } from './dto/create-messaging.dto';
-import { resolve } from 'path';
-
+import { UseGuards } from '@nestjs/common';
+import { WsJwtAuthGuard } from '../auth/wsAuth.guard';
 @WebSocketGateway({ cors: true })
+@UseGuards(WsJwtAuthGuard)
 export class MessagingGateway {
   @WebSocketServer()
   server: Server;
@@ -17,12 +18,13 @@ export class MessagingGateway {
   // }
 
   @SubscribeMessage('sendMessage')
+
   async handleSendMessage(@MessageBody() data: CreateMessagingDto) {
     const response = await this.messagingService.createMessage(data);
-    
-    const reciptientId = response.reciptientId as string;
-    if (reciptientId) {
-      this.server.to(reciptientId).emit('newMessage', response.savedMessage);
+
+    const reciptientDetails = response.recipientDetails;
+    if (reciptientDetails && reciptientDetails.socketId) {
+      this.server.to(reciptientDetails.socketId).emit('newMessage', response.savedMessage);
     }
 
     return true;

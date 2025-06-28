@@ -1,17 +1,13 @@
 import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { CreateMessagingDto } from './dto/create-messaging.dto';
-import { UpdateMessagingDto } from './dto/update-messaging.dto';
-import { userTypes } from '../enums/user.enums';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from 'src/entities/user.entity';
+import { User } from '../entities/user.entity';
 import { Repository } from 'typeorm';
-import { Conversations } from 'src/entities/conversation.entity';
-import { ConversationMembers } from 'src/entities/conversationMembers.entity';
-import { Messages } from 'src/entities/messaging.entity';
+import { Conversations } from '../entities/conversation.entity';
+import { ConversationMembers } from '../entities/conversationMembers.entity';
+import { Messages } from '../entities/messaging.entity';
 import { FetchMessagesQueryDto } from './dto/fetchMessages.dto';
-import { MessagingGateway } from './messaging.gateway';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import Redis from 'ioredis';
 import { Socket } from 'socket.io';
 
 @Injectable()
@@ -29,7 +25,7 @@ export class MessagingService {
     @InjectRepository(Messages)
     private messagesRepo: Repository<Messages>,
 
-    @Inject(CACHE_MANAGER) private cacheManager: Cache
+    @Inject('REDIS_CLIENT') private readonly cacheManager: Redis,
   ) { }
 
   async fetchConversation(queryDetails: FetchMessagesQueryDto) {
@@ -76,7 +72,7 @@ export class MessagingService {
         throw new Error("Coudn't find reciever details");
       }
 
-      const conversationId = [senderDetails.id, recieverDetails.id].sort().join('');
+      const conversationId = [senderDetails.id, recieverDetails.id].sort().join('_');
       let conversationObject = await this.conversationRepo.findOne({ where: { conversationId: conversationId } });
 
       if (!conversationObject) {
@@ -109,9 +105,9 @@ export class MessagingService {
       conversationObject.lastMessage = savedMessage;
 
       this.conversationRepo.save(conversationObject);
-      var reciptientId = await this.cacheManager.get(recieverDetails.id);
+      var reciptientDetails = await this.cacheManager.get(recieverDetails.id);
 
-      return { savedMessage, reciptientId };
+      return { savedMessage, recipientDetails: reciptientDetails ? JSON.parse(reciptientDetails) : null };
     } catch (error) {
       throw new InternalServerErrorException(error.message);
     }
@@ -120,11 +116,18 @@ export class MessagingService {
   async handleClientConnection(client: Socket) {
     try {
       if (!client.handshake.auth.userId) {
-        throw new Error("Coudn't find userID");
+        throw new Error("Coudn't find userId");
       }
 
       const userId = client.handshake.auth.userId as string;
-      await this.cacheManager.set(userId, client.id);
+      const cacheData = await this.cacheManager.get(userId);
+      if (!cacheData) {
+        throw new Error("User not registered");
+      }
+
+      const parsed = JSON.parse(cacheData);
+      parsed.socketId = client.id;
+      await this.cacheManager.set(userId, JSON.stringify(parsed));
 
       return true;
     } catch (error) {
@@ -139,7 +142,15 @@ export class MessagingService {
         throw new Error("Coudn't find User Id");
       }
 
-      await this.cacheManager.del(userId);
+      const cacheData = await this.cacheManager.get(userId);
+      if (!cacheData) {
+        throw new Error("User not registered");
+      }
+
+      const parsedData = JSON.parse(cacheData);
+      delete parsedData.socketId;
+
+      await this.cacheManager.set(userId, JSON.stringify(parsedData));
       return true;
     } catch (error) {
       throw new InternalServerErrorException(error.message);

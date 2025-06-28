@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OTP } from 'src/entities/otp.entity';
 import { User } from 'src/entities/user.entity';
@@ -7,6 +7,8 @@ import { randomInt } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { userTypes } from '../enums/user.enums';
+import Redis from 'ioredis';
+import { throwError } from 'rxjs';
 
 @Injectable()
 export class CommonService {
@@ -17,7 +19,9 @@ export class CommonService {
         @InjectRepository(OTP)
         private otpRepository: Repository<OTP>,
 
-        private jwtService: JwtService
+        private jwtService: JwtService,
+
+        @Inject('REDIS_CLIENT') private readonly cacheManager: Redis,
     ) { }
 
     async otpLogin(loginCredentials: { countryCode: string, phoneNumber: string }) {
@@ -90,19 +94,28 @@ export class CommonService {
 
             }
 
+            const payload = { userId: user.id };
 
-            const payload = { userId: user ? user.id : null };
             const accessToken = await this.jwtService.signAsync(payload);
+            await this.cacheManager.set(user.id, JSON.stringify({ token: accessToken }));
             await this.otpRepository.remove(otpObject);
 
             return {
-                isUserRegistered: user ? true : false,
-                user: user ? user : {},
-                userId: user ? user.id : null,
-                accessToken: user ? accessToken : null,
+                isUserRegistered: !user.firstName ? true : false,
+                user: user,
+                userId: user.id,
+                accessToken: accessToken,
             };
         } catch (error) {
-            throw new BadRequestException(error.message);
+            throw new InternalServerErrorException(error.message);
+        }
+    }
+
+    async logout(id: string) {
+        try {
+            await this.cacheManager.del(id);
+        } catch (error) {
+            throw new InternalServerErrorException(error.message);
         }
     }
 }

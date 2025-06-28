@@ -1,20 +1,29 @@
 import { Module } from '@nestjs/common';
-import { redisStore } from 'cache-manager-ioredis';
-import { CacheModule } from '@nestjs/cache-manager';
+import Redis from 'ioredis';
+
+const RedisProvider = {
+  provide: 'REDIS_CLIENT',
+  useFactory: () => {
+    // move credentials to env
+    const client = new Redis({
+      host: 'redis-16393.c326.us-east-1-3.ec2.redns.redis-cloud.com', 
+      port: 16393,
+      username: 'default',
+      password: 'rYNXJQ4i485yUkNIAgfxaQFaF7W8Sux3',
+    });
+
+    client.on('connect', () => console.log('Redis connected'));
+    client.on('error', (err) => {
+      console.error('Redis error', err)
+      process.exit(1);
+    });
+
+    return client;
+  },
+};
+
 @Module({
-  imports: [
-    CacheModule.registerAsync({
-      useFactory: async () => ({
-        store: await redisStore({
-          socket: {
-            host: 'localhost',
-            port: 6379,
-          },
-          ttl: 60 * 5, // 5 minutes
-        }),
-      }),
-      isGlobal: true,
-    }),
-  ]
+  providers: [RedisProvider],
+  exports: ['REDIS_CLIENT'],
 })
 export class RedisCacheModule { }

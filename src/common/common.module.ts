@@ -4,9 +4,9 @@ import { CommonController } from './common.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { OTP } from '../entities/otp.entity';
-
+import { RedisCacheModule } from '../redis-cache/redis-cache.module';
 @Module({
-  imports: [TypeOrmModule.forFeature([User, OTP ])],
+  imports: [TypeOrmModule.forFeature([User, OTP ]) , RedisCacheModule],
   controllers: [CommonController],
   providers: [CommonService],
 })

@@ -8,9 +8,9 @@ import { UsersService } from './user.service';
 import { Vat } from 'src/entities/vat.entity';
 import { ServicesMaster } from 'src/entities/servicesMaster.entity';
 import { TenancyContract } from 'src/entities/tenancyContract.entity';
-
+import { RedisCacheModule } from 'src/redis-cache/redis-cache.module';
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Address, PersonalDocuments, Vat , TenancyContract ,ServicesMaster])],
+  imports: [TypeOrmModule.forFeature([User, Address, PersonalDocuments, Vat , TenancyContract ,ServicesMaster]) , RedisCacheModule],
   controllers: [UserController],
   providers: [UsersService],
 })

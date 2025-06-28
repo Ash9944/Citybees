@@ -1,0 +1,11 @@
+/* 
+This config can be used to map roles with states which they are allowed ,
+send this JSON to the front end and show states with an if condition.
+*/
+{
+    "SERVICE_REQUESTOR": {
+        "states": [],
+        "menus": [],
+        "actions": []
+    }
+}

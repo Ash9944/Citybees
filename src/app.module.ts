@@ -11,6 +11,7 @@ import { RedisCacheModule } from './redis-cache/redis-cache.module';
 
 @Module({
   imports: [
+    RedisCacheModule,
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: 'localhost',
@@ -18,7 +19,7 @@ import { RedisCacheModule } from './redis-cache/redis-cache.module';
       username: 'postgres',
       password: 'admin',
       database: "citybees_ash",
-       entities: [__dirname + '/**/*.entity.{ts,js}'], // ✅ FIXED
+      entities: [__dirname + '/**/*.entity.{ts,js}'], // ✅ FIXED
       synchronize: true,
     }),
     UsersModule,
@@ -28,8 +29,8 @@ import { RedisCacheModule } from './redis-cache/redis-cache.module';
     CommonModule,
     AuthModule,
     MessagingModule,
-    RedisCacheModule,
+
   ],
 })
 
-export class AppModule {}
+export class AppModule { }
